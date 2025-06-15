@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Screen Recorder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Screen Recorder</h1>
+    <div class="controls">
+      <button id="recordBtn" class="btn record">
+        <span class="icon">●</span>
+        Start Recording
+      </button>
+      <button id="muteBtn" class="btn mute" disabled>
+        <span class="icon">🔊</span>
+        Mute
+      </button>
+      <button id="stopBtn" class="btn stop" disabled>
+        <span class="icon">■</span>
+        Stop Recording
+      </button>
+    </div>
+    <div id="timer" class="timer">00:00:00</div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html> 
