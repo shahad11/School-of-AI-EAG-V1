@@ -56,6 +56,7 @@ class SetupPage {
         try {
             // Save to Chrome storage
             await chrome.storage.local.set({ gemini_api_key: apiKey });
+            console.log('💾 API key saved to storage');
             
             // Test the API key
             const isValid = await this.testAPIKey(apiKey);

@@ -4,6 +4,9 @@ class ResearchPaperAI {
         this.userInput = document.getElementById('user-input');
         this.sendBtn = document.getElementById('send-btn');
         this.status = document.getElementById('status');
+        this.debugPanel = document.getElementById('debug-panel');
+        this.debugLogs = document.getElementById('debug-logs');
+        this.toggleDebugBtn = document.getElementById('toggle-debug');
         this.conversationHistory = [];
         
         this.initializeEventListeners();
@@ -13,11 +16,14 @@ class ResearchPaperAI {
     async checkAPIKey() {
         try {
             const result = await chrome.storage.local.get(['gemini_api_key']);
-            if (!result.gemini_api_key) {
+            if (!result.gemini_api_key || result.gemini_api_key.trim() === '') {
                 this.showAPIKeyError();
+            } else {
+                console.log('✅ API key found in popup check');
             }
         } catch (error) {
             console.error('Error checking API key:', error);
+            this.showAPIKeyError();
         }
     }
     
@@ -56,6 +62,41 @@ class ResearchPaperAI {
                 this.handleSendMessage();
             }
         });
+        
+        // Debug panel toggle
+        this.toggleDebugBtn.addEventListener('click', () => {
+            this.toggleDebugPanel();
+        });
+        
+        // Listen for debug logs from background script
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === 'debugLog') {
+                this.addDebugLog(request.message, request.type);
+            }
+        });
+    }
+    
+    toggleDebugPanel() {
+        const isVisible = this.debugPanel.style.display !== 'none';
+        if (isVisible) {
+            this.debugPanel.style.display = 'none';
+            this.toggleDebugBtn.textContent = 'Show Debug';
+        } else {
+            this.debugPanel.style.display = 'block';
+            this.toggleDebugBtn.textContent = 'Hide';
+        }
+    }
+    
+    addDebugLog(message, type = 'info') {
+        const logEntry = document.createElement('div');
+        logEntry.className = `debug-log-entry ${type}`;
+        logEntry.textContent = message;
+        this.debugLogs.appendChild(logEntry);
+        this.debugLogs.scrollTop = this.debugLogs.scrollHeight;
+    }
+    
+    clearDebugLogs() {
+        this.debugLogs.innerHTML = '';
     }
     
     async handleSendMessage() {
@@ -65,6 +106,11 @@ class ResearchPaperAI {
         // Add user message to chat
         this.addMessage(message, 'user');
         this.userInput.value = '';
+        
+        // Clear debug logs and show debug panel
+        this.clearDebugLogs();
+        this.debugPanel.style.display = 'block';
+        this.toggleDebugBtn.textContent = 'Hide';
         
         // Disable input and show loading
         this.setLoading(true);

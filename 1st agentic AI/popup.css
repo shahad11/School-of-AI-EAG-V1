@@ -46,6 +46,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
 }
 
 .chat-messages {
@@ -254,4 +255,94 @@ body {
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
+}
+
+/* Debug Panel Styles */
+.debug-panel {
+    background: #f8f9fa;
+    border-top: 1px solid #e1e5e9;
+    max-height: 200px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.debug-panel.collapsed {
+    max-height: 0;
+}
+
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #e3f2fd;
+    border-bottom: 1px solid #bbdefb;
+}
+
+.debug-header h3 {
+    margin: 0;
+    font-size: 14px;
+    color: #1976d2;
+    font-weight: 600;
+}
+
+.debug-toggle {
+    background: #1976d2;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.debug-toggle:hover {
+    background: #1565c0;
+}
+
+.debug-logs {
+    padding: 12px 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #333;
+    max-height: 150px;
+    overflow-y: auto;
+    background: #fafafa;
+}
+
+.debug-log-entry {
+    margin-bottom: 4px;
+    padding: 2px 0;
+}
+
+.debug-log-entry.iteration {
+    background: #e8f5e8;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #2e7d32;
+}
+
+.debug-log-entry.llm-response {
+    background: #fff3e0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #e65100;
+}
+
+.debug-log-entry.tool-result {
+    background: #f3e5f5;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #7b1fa2;
+}
+
+.debug-log-entry.complete {
+    background: #e3f2fd;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #1976d2;
 } 

@@ -1,10 +1,22 @@
-// Background service worker for Research Paper AI
-class AgenticAI {
+// Background service worker for Research Paper AI - Proper Agent Architecture
+class ResearchPaperAgent {
     constructor() {
         this.apiKey = null;
         this.maxIterations = 5;
-        this.conversationHistory = [];
-        console.log('🔬 AgenticAI constructor called');
+        this.memory = {
+            conversationHistory: [],
+            searchResults: [],
+            userPreferences: {}
+        };
+        this.tools = {
+            searchArxiv: this.searchArxiv.bind(this),
+            searchIEEE: this.searchIEEE.bind(this),
+            searchGoogleScholar: this.searchGoogleScholar.bind(this),
+            analyzePapers: this.analyzePapers.bind(this),
+            filterPapers: this.filterPapers.bind(this)
+        };
+        
+        console.log('🔬 Research Paper Agent initialized');
         this.initializeAPIKey();
     }
     
@@ -14,13 +26,18 @@ class AgenticAI {
             // Try to get API key from storage
             const result = await chrome.storage.local.get(['gemini_api_key']);
             console.log('📦 Storage result:', result);
+            console.log('📦 Raw gemini_api_key:', result.gemini_api_key);
             
-            if (result.gemini_api_key) {
-                this.apiKey = result.gemini_api_key;
-                console.log('✅ API key loaded from storage:', this.apiKey.substring(0, 10) + '...');
+            if (result.gemini_api_key && result.gemini_api_key.trim() !== '') {
+                this.apiKey = result.gemini_api_key.trim();
+                console.log('✅ API key loaded from storage');
+                console.log('  - Length:', this.apiKey.length);
+                console.log('  - Starts with:', this.apiKey.substring(0, 10) + '...');
+                console.log('  - Ends with:', '...' + this.apiKey.substring(this.apiKey.length - 5));
             } else {
                 console.warn('⚠️ API key not found in storage. Please configure it.');
                 console.log('🔍 Available storage keys:', Object.keys(result));
+                console.log('🔍 gemini_api_key value:', result.gemini_api_key);
             }
         } catch (error) {
             console.error('❌ Error loading API key:', error);
@@ -32,22 +49,20 @@ class AgenticAI {
         console.log('🔑 Current API key status:', this.apiKey ? 'SET' : 'NOT SET');
         
         try {
-            // Re-check API key before processing
             if (!this.apiKey) {
-                console.log('🔄 Re-checking API key...');
                 await this.initializeAPIKey();
             }
             
             if (!this.apiKey) {
-                console.error('❌ API key still not available after re-check');
                 throw new Error('API key not configured. Please set your Gemini API key in the extension options.');
             }
             
-            console.log('✅ API key is available, proceeding with query');
-            this.conversationHistory = conversationHistory || [];
-            this.conversationHistory.push({ role: 'user', content: message });
+            // Update memory with new conversation
+            this.memory.conversationHistory = conversationHistory || [];
+            this.memory.conversationHistory.push({ role: 'user', content: message });
             
-            const results = await this.runAgenticSearch(message);
+            // Run the agent
+            const results = await this.runAgent(message);
             return { success: true, results };
         } catch (error) {
             console.error('❌ Error in processQuery:', error);
@@ -55,102 +70,116 @@ class AgenticAI {
         }
     }
     
-    async runAgenticSearch(query) {
-        let currentQuery = query;
+    async runAgent(userQuery) {
         let iteration = 0;
-        let searchResults = [];
+        let currentContext = userQuery;
+        let finalResults = [];
+        
+        console.log('\n🤖 Starting Research Paper Agent...');
+        console.log('📋 User Query:', userQuery);
+        
+        // Send debug info to popup
+        this.sendDebugLog('🤖 Starting Research Paper Agent...', 'info');
+        this.sendDebugLog(`📋 User Query: ${userQuery}`, 'info');
         
         while (iteration < this.maxIterations) {
-            console.log(`--- Iteration ${iteration + 1} ---`);
+            console.log(`\n--- Iteration ${iteration + 1} ---`);
+            this.sendDebugLog(`--- Iteration ${iteration + 1} ---`, 'iteration');
             
-            // Build the full conversation context
-            const fullContext = this.buildConversationContext(currentQuery);
+            // Build orchestrator prompt
+            const orchestratorPrompt = this.buildOrchestratorPrompt(currentContext, iteration);
             
-            // Get LLM response
-            const llmResponse = await this.callLLM(fullContext);
-            console.log('LLM Response:', llmResponse);
+            // Get LLM decision
+            const llmResponse = await this.callLLM(orchestratorPrompt);
+            console.log(`LLM Response: ${llmResponse}`);
+            this.sendDebugLog(`LLM Response: ${llmResponse}`, 'llm-response');
             
             // Parse the response
             const parsedResponse = this.parseLLMResponse(llmResponse);
             
             if (parsedResponse.type === 'FINAL_ANSWER') {
-                // Final answer - return the results
-                console.log('✅ Got final answer, returning results');
-                return searchResults;
+                console.log('\n=== Agent Execution Complete ===');
+                console.log('📊 Final Results:', finalResults.length, 'papers found');
+                this.sendDebugLog('=== Agent Execution Complete ===', 'complete');
+                this.sendDebugLog(`📊 Final Results: ${finalResults.length} papers found`, 'complete');
+                return finalResults;
             } else if (parsedResponse.type === 'TOOL_CALL') {
-                // Execute tool call
-                console.log('🔧 Executing tool:', parsedResponse.tool);
+                // Execute tool
                 const toolResult = await this.executeTool(parsedResponse.tool, parsedResponse.params);
-                console.log('Tool Result:', toolResult);
+                console.log(`  Result: ${JSON.stringify(toolResult)}`);
+                this.sendDebugLog(`  Result: ${JSON.stringify(toolResult)}`, 'tool-result');
                 
-                // Add to conversation history
-                this.conversationHistory.push({ 
+                // Update memory
+                this.memory.conversationHistory.push({ 
                     role: 'assistant', 
-                    content: `Called ${parsedResponse.tool} with params: ${JSON.stringify(parsedResponse.params)}` 
+                    content: `Called ${parsedResponse.tool} with ${JSON.stringify(parsedResponse.params)} parameters` 
                 });
-                this.conversationHistory.push({ 
+                this.memory.conversationHistory.push({ 
                     role: 'system', 
                     content: `Tool result: ${JSON.stringify(toolResult)}` 
                 });
                 
-                // Update search results if papers were found
+                // Update results if papers were found
                 if (toolResult.papers) {
-                    searchResults = toolResult.papers;
+                    finalResults = toolResult.papers;
                 }
                 
-                // Prepare next query
-                currentQuery = `Previous query: ${query}\nTool called: ${parsedResponse.tool}\nTool result: ${JSON.stringify(toolResult)}\nWhat should I do next?`;
+                // Prepare next context
+                currentContext = this.buildNextContext(userQuery, parsedResponse, toolResult, iteration);
             } else {
-                // Invalid response format - treat as final answer
                 console.log('⚠️ Unexpected response type, treating as final answer');
-                return searchResults;
+                this.sendDebugLog('⚠️ Unexpected response type, treating as final answer', 'info');
+                return finalResults;
             }
             
             iteration++;
         }
         
-        // If we reach max iterations, return what we have
-        console.log('⏰ Reached max iterations, returning current results');
-        return searchResults;
+        console.log('\n=== Agent Execution Complete (Max Iterations Reached) ===');
+        this.sendDebugLog('=== Agent Execution Complete (Max Iterations Reached) ===', 'complete');
+        return finalResults;
     }
     
-    buildConversationContext(currentQuery) {
-        const systemPrompt = `You are a research paper search agent. You can search for academic papers from IEEE, arXiv, Google Scholar, and Semantic Scholar.
+    buildOrchestratorPrompt(currentContext, iteration) {
+        const systemPrompt = `You are an intelligent research paper agent. Your job is to help users find relevant academic papers.
 
-Available tools:
-1. SEARCH_PAPERS(query, source) - Search for papers using the given query and source (ieee, arxiv, scholar, semantic)
-2. FINAL_ANSWER - Provide the final results
+AVAILABLE TOOLS:
+1. searchArxiv(query) - Search arXiv for papers
+2. searchIEEE(query) - Search IEEE Xplore for papers  
+3. searchGoogleScholar(query) - Search Google Scholar for papers
+4. analyzePapers(papers, criteria) - Analyze and rank papers based on criteria
+5. filterPapers(papers, filters) - Filter papers based on specific criteria
 
-IMPORTANT: You MUST respond with EXACTLY ONE of these formats:
+RESPONSE FORMAT:
+- For tool calls: TOOL_CALL: tool_name|{"param1": "value1"}
+- For final answer: FINAL_ANSWER: your response
 
-For tool calls:
-TOOL_CALL: tool_name|{"param1": "value1", "param2": "value2"}
-
-For final answers:
-FINAL_ANSWER: your final response here
-
-Examples:
-- TOOL_CALL: SEARCH_PAPERS|{"query": "machine learning", "source": "all"}
-- FINAL_ANSWER: Here are the research papers I found...
-
-Search strategy:
-1. First, analyze the user's query to understand what they're looking for
+AGENT STRATEGY:
+1. First, understand what the user is looking for
 2. Search multiple sources to get comprehensive results
-3. Filter and rank the most relevant papers
-4. Return the best matches
+3. Analyze and filter the papers based on relevance
+4. Return the most relevant papers
 
-Always respond with exactly one action per iteration. Do not include any other text or formatting.`;
+CONVERSATION HISTORY:
+${this.memory.conversationHistory.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n')}
 
-        let context = systemPrompt + '\n\n';
-        
-        // Add conversation history
-        this.conversationHistory.forEach(msg => {
-            context += `${msg.role.toUpperCase()}: ${msg.content}\n`;
-        });
-        
-        context += `\nCurrent query: ${currentQuery}\n`;
-        
-        return context;
+Current iteration: ${iteration + 1}
+Current context: ${currentContext}
+
+What should I do next?`;
+
+        return systemPrompt;
+    }
+    
+    buildNextContext(originalQuery, toolCall, toolResult, iteration) {
+        return `${originalQuery}
+
+Iteration ${iteration + 1} completed:
+- Tool called: ${toolCall.tool}
+- Parameters: ${JSON.stringify(toolCall.params)}
+- Result: ${JSON.stringify(toolResult)}
+
+What should I do next?`;
     }
     
     async callLLM(context) {
@@ -158,47 +187,70 @@ Always respond with exactly one action per iteration. Do not include any other t
             throw new Error('API key not configured');
         }
         
-        console.log('🔑 Using API key:', this.apiKey.substring(0, 10) + '...');
+        console.log('🔑 API Key Debug Info:');
+        console.log('  - Key length:', this.apiKey.length);
+        console.log('  - Key starts with:', this.apiKey.substring(0, 10) + '...');
+        console.log('  - Key ends with:', '...' + this.apiKey.substring(this.apiKey.length - 5));
+        console.log('  - Contains spaces:', this.apiKey.includes(' '));
+        console.log('  - Contains newlines:', this.apiKey.includes('\n'));
+        console.log('  - Trimmed length:', this.apiKey.trim().length);
         
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.apiKey}`, {
+        // Use trimmed key to avoid any whitespace issues
+        const cleanApiKey = this.apiKey.trim();
+        
+        const requestBody = {
+            contents: [{
+                parts: [{
+                    text: context
+                }]
+            }],
+            generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 1000
+            }
+        };
+        
+        console.log('🌐 Making API request to Gemini...');
+        console.log('  - URL:', `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cleanApiKey.substring(0, 10)}...`);
+        console.log('  - Request body:', JSON.stringify(requestBody, null, 2));
+        
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cleanApiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: context
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.1,
-                    maxOutputTokens: 1000
-                }
-            })
+            body: JSON.stringify(requestBody)
         });
+        
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
         
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('API Error Response:', errorText);
+            console.error('❌ API Error Response:', errorText);
+            console.error('❌ Full error details:', {
+                status: response.status,
+                statusText: response.statusText,
+                url: response.url,
+                body: errorText
+            });
             throw new Error(`API call failed: ${response.status} - ${errorText}`);
         }
         
         const data = await response.json();
+        console.log('✅ API call successful');
         return data.candidates[0].content.parts[0].text;
     }
     
     parseLLMResponse(response) {
         console.log('🔍 Parsing LLM response:', response);
         
-        // Clean up the response
         const cleanResponse = response.trim();
         const lines = cleanResponse.split('\n');
         const firstLine = lines[0].trim();
         
         console.log('📝 First line:', firstLine);
         
-        // Check for TOOL_CALL format
         if (firstLine.startsWith('TOOL_CALL:')) {
             const parts = firstLine.split(':', 2)[1].split('|');
             const tool = parts[0].trim();
@@ -207,13 +259,11 @@ Always respond with exactly one action per iteration. Do not include any other t
             if (parts[1]) {
                 const paramsString = parts[1].trim();
                 try {
-                    // Try to parse as JSON first
                     params = JSON.parse(paramsString);
                     console.log('🔧 Parsed tool call with JSON params:', { tool, params });
                 } catch (error) {
-                    // If JSON parsing fails, assume it's a simple string for the 'query' parameter
                     console.warn('⚠️ JSON parsing failed for params. Assuming simple string query.', error.message);
-                    params = { "query": paramsString, "source": "all" }; // Fallback for simple string
+                    params = { "query": paramsString, "source": "all" };
                     console.log('🔧 Parsed tool call with fallback params:', { tool, params });
                 }
             } else {
@@ -222,13 +272,11 @@ Always respond with exactly one action per iteration. Do not include any other t
 
             return { type: 'TOOL_CALL', tool, params };
         } 
-        // Check for FINAL_ANSWER format
         else if (firstLine.startsWith('FINAL_ANSWER:')) {
             const results = firstLine.split(':', 2)[1].trim();
             console.log('✅ Parsed final answer:', results);
             return { type: 'FINAL_ANSWER', results };
         }
-        // Handle case where LLM gives a direct response without our format
         else {
             console.log('⚠️ LLM didn\'t use expected format, treating as final answer');
             return { type: 'FINAL_ANSWER', results: cleanResponse };
@@ -236,65 +284,44 @@ Always respond with exactly one action per iteration. Do not include any other t
     }
     
     async executeTool(toolName, params) {
+        console.log(`🔧 Executing tool: ${toolName} with params:`, params);
+        
         switch (toolName) {
-            case 'SEARCH_PAPERS':
-                return await this.searchPapers(params.query, params.source);
+            case 'searchArxiv':
+                return await this.tools.searchArxiv(params.query || params);
+            case 'searchIEEE':
+                return await this.tools.searchIEEE(params.query || params);
+            case 'searchGoogleScholar':
+                return await this.tools.searchGoogleScholar(params.query || params);
+            case 'analyzePapers':
+                return await this.tools.analyzePapers(params.papers, params.criteria);
+            case 'filterPapers':
+                return await this.tools.filterPapers(params.papers, params.filters);
             default:
                 throw new Error(`Unknown tool: ${toolName}`);
         }
     }
     
-    async searchPapers(query, source = 'all') {
-        const sources = source === 'all' ? ['arxiv', 'ieee', 'scholar'] : [source];
-        let allPapers = [];
-        
-        for (const src of sources) {
-            try {
-                const papers = await this.searchSource(query, src);
-                allPapers = allPapers.concat(papers);
-            } catch (error) {
-                console.error(`Error searching ${src}:`, error);
-            }
-        }
-        
-        // Remove duplicates and limit results
-        const uniquePapers = this.removeDuplicates(allPapers);
-        return { papers: uniquePapers.slice(0, 5) };
-    }
-    
-    async searchSource(query, source) {
-        switch (source) {
-            case 'arxiv':
-                return await this.searchArxiv(query);
-            case 'ieee':
-                return await this.searchIEEE(query);
-            case 'scholar':
-                return await this.searchGoogleScholar(query);
-            default:
-                return [];
-        }
-    }
-    
+    // Tool implementations
     async searchArxiv(query) {
         const searchUrl = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=5&sortBy=relevance&sortOrder=descending`;
         
         try {
+            console.log('🔍 Searching ArXiv for:', query);
             const response = await fetch(searchUrl);
             const xmlText = await response.text();
             
-            // Simple XML parsing for service worker context
             const papers = this.parseArxivXML(xmlText);
-            return papers;
+            console.log('📄 Found ArXiv papers:', papers.length);
+            return { papers };
         } catch (error) {
             console.error('ArXiv search error:', error);
-            return [];
+            return { papers: [] };
         }
     }
     
     parseArxivXML(xmlText) {
         const papers = [];
-        
-        // Simple regex-based parsing for service worker
         const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
         let match;
         
@@ -316,10 +343,10 @@ Always respond with exactly one action per iteration. Do not include any other t
             
             if (title && url) {
                 papers.push({
-                    title,
-                    authors,
-                    abstract,
-                    url,
+                    title: title.replace(/^\s*Title:\s*/, ''),
+                    authors: authors || 'Unknown Authors',
+                    abstract: abstract || 'Abstract not available',
+                    url: url,
                     source: 'arXiv'
                 });
             }
@@ -329,54 +356,68 @@ Always respond with exactly one action per iteration. Do not include any other t
     }
     
     async searchIEEE(query) {
-        // IEEE doesn't have a public API, so we'll simulate results
-        // In a real implementation, you might use web scraping or a paid API
-        return [
-            {
-                title: `IEEE Paper on ${query}`,
-                authors: 'IEEE Authors',
-                abstract: `This is a simulated IEEE paper about ${query}. In a real implementation, this would be fetched from IEEE Xplore.`,
-                url: `https://ieeexplore.ieee.org/search/searchresult.jsp?queryText=${encodeURIComponent(query)}`,
-                source: 'IEEE'
-            }
-        ];
+        console.log('🔍 Searching IEEE for:', query);
+        const searchUrl = `https://ieeexplore.ieee.org/search/searchresult.jsp?queryText=${encodeURIComponent(query)}`;
+        
+        return {
+            papers: [{
+                title: `IEEE Search Results for: ${query}`,
+                authors: 'IEEE Xplore',
+                abstract: `Click to view IEEE Xplore search results for "${query}". This will open IEEE's search page with relevant papers.`,
+                url: searchUrl,
+                source: 'IEEE Xplore'
+            }]
+        };
     }
     
     async searchGoogleScholar(query) {
-        // Google Scholar doesn't have a public API, so we'll simulate results
-        return [
-            {
-                title: `Google Scholar Paper on ${query}`,
-                authors: 'Scholar Authors',
-                abstract: `This is a simulated Google Scholar paper about ${query}. In a real implementation, this would be fetched from Google Scholar.`,
-                url: `https://scholar.google.com/scholar?q=${encodeURIComponent(query)}`,
+        console.log('🔍 Searching Google Scholar for:', query);
+        const searchUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(query)}`;
+        
+        return {
+            papers: [{
+                title: `Google Scholar Results for: ${query}`,
+                authors: 'Google Scholar',
+                abstract: `Click to view Google Scholar search results for "${query}". This will open Google Scholar with relevant papers.`,
+                url: searchUrl,
                 source: 'Google Scholar'
-            }
-        ];
+            }]
+        };
     }
     
-    removeDuplicates(papers) {
-        const seen = new Set();
-        return papers.filter(paper => {
-            const key = paper.title.toLowerCase();
-            if (seen.has(key)) {
-                return false;
-            }
-            seen.add(key);
-            return true;
+    async analyzePapers(papers, criteria) {
+        console.log('🔍 Analyzing papers with criteria:', criteria);
+        // Simple analysis - in a real implementation, this would use the LLM to analyze papers
+        return { papers: papers.slice(0, 3) }; // Return top 3
+    }
+    
+    async filterPapers(papers, filters) {
+        console.log('🔍 Filtering papers with filters:', filters);
+        // Simple filtering - in a real implementation, this would apply specific filters
+        return { papers: papers };
+    }
+    
+    sendDebugLog(message, type = 'info') {
+        // Send debug log to popup if it's open
+        chrome.runtime.sendMessage({
+            action: 'debugLog',
+            message: message,
+            type: type
+        }).catch(() => {
+            // Popup might not be open, ignore error
         });
     }
 }
 
-// Initialize the agentic AI
-console.log('🚀 Initializing Research Paper AI...');
-const agenticAI = new AgenticAI();
+// Initialize the agent
+console.log('🚀 Initializing Research Paper Agent...');
+const agent = new ResearchPaperAgent();
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('📨 Received message:', request.action);
     if (request.action === 'processQuery') {
-        agenticAI.processQuery(request.message, request.conversationHistory)
+        agent.processQuery(request.message, request.conversationHistory)
             .then(results => {
                 console.log('✅ Query processed successfully');
                 sendResponse(results);
@@ -385,19 +426,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.error('❌ Query processing failed:', error);
                 sendResponse({ success: false, error: error.message });
             });
-        return true; // Keep the message channel open for async response
+        return true;
     }
 });
 
-// Listen for storage changes to update API key
+// Listen for storage changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.gemini_api_key) {
         console.log('🔄 API key updated, reinitializing...');
-        agenticAI.apiKey = changes.gemini_api_key.newValue;
+        agent.apiKey = changes.gemini_api_key.newValue;
     }
 });
 
 // Handle extension installation
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('🔬 Research Paper AI extension installed');
+    console.log('🔬 Research Paper Agent extension installed');
 }); 
