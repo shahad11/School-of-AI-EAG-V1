@@ -1,0 +1,11 @@
+{
+  "name": "dark-mode-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for dark mode",
+  "scripts": {
+    "generate-icons": "node generate-icons.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0"
+  }
+} 
