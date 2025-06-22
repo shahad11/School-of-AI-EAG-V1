@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Research Paper AI</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Research Paper AI</h1>
+            <p>Ask me to find relevant research papers!</p>
+        </div>
+        
+        <div class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+                <div class="message system">
+                    <div class="message-content">
+                        Hello! I'm your research assistant. Tell me what you're looking for and I'll find relevant papers from IEEE, arXiv, and other research sites.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="input-container">
+                <textarea 
+                    id="user-input" 
+                    placeholder="Describe your research topic, question, or what you're working on..."
+                    rows="3"
+                ></textarea>
+                <button id="send-btn" class="send-btn">
+                    <span class="btn-text">Search Papers</span>
+                    <span class="loading-spinner" style="display: none;">⏳</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div id="status" class="status">Ready to help!</div>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html> 

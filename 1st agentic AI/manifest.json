@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Research Paper Agentic AI",
+  "version": "1.0",
+  "description": "An AI agent that fetches relevant research papers from IEEE, arXiv, and other research sites based on your queries",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://ieeexplore.ieee.org/*",
+    "https://arxiv.org/*",
+    "https://scholar.google.com/*",
+    "https://www.semanticscholar.org/*",
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://export.arxiv.org/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Research Paper AI"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["api-config.js", "content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html", "popup.js", "popup.css", "setup.html", "setup.js", "api-config.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "options_page": "setup.html"
+} 
