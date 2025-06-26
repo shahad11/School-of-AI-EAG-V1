@@ -188,9 +188,9 @@ async def draw_rectangle(x1: int, y1: int, x2: int, y2: int) -> dict:
         
         # Draw rectangle - coordinates should already be relative to the Paint window
         # No need to add primary_width since we're clicking within the Paint window
-        canvas.press_mouse_input(coords=(x1+2560, y1))
-        canvas.move_mouse_input(coords=(x2+2560, y2))
-        canvas.release_mouse_input(coords=(x2+2560, y2))
+        canvas.press_mouse_input(coords=(x1+600, y1))
+        canvas.move_mouse_input(coords=(x2+200, y2))
+        canvas.release_mouse_input(coords=(x2+200, y2))
         
         return {
             "content": [

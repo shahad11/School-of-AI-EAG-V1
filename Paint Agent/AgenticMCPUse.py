@@ -16,7 +16,7 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API-KEY")
 client = genai.Client(api_key=api_key)
 
-max_iterations = 3
+max_iterations = 5
 last_response = None
 iteration = 0
 iteration_response = []
@@ -71,7 +71,7 @@ async def main():
                 # Create system prompt with available tools
                 print("Creating system prompt...")
                 print(f"Number of tools: {len(tools)}")
-                set_trace()
+                #set_trace()
     
                 
                 try:
@@ -132,7 +132,7 @@ Respond with EXACTLY ONE of these formats:
 DO NOT include multiple responses. Give ONE response at a time.
 Make sure to provide parameters in the correct order as specified in the function signature."""
 
-                query = """Multiply 45 and 444"""
+                query = """Multiply 45 and 444 and draw a rectangle in paint and enter the result there."""
                 print("Starting iteration loop...")
                 
                 # Use global iteration variables
