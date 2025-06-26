@@ -130,9 +130,11 @@ Respond with EXACTLY ONE of these formats:
    FINAL_ANSWER: [number]
 
 DO NOT include multiple responses. Give ONE response at a time.
-Make sure to provide parameters in the correct order as specified in the function signature."""
+Make sure to provide parameters in the correct order as specified in the function signature.
 
-                query = """Multiply 45 and 444 and draw a rectangle in paint and enter the result there."""
+"""
+
+                query = """Multiply 45 and 444 and draw a rectangle in paint app and enter the result there."""
                 print("Starting iteration loop...")
                 
                 # Use global iteration variables

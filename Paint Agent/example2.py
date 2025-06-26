@@ -180,7 +180,7 @@ async def draw_rectangle(x1: int, y1: int, x2: int, y2: int) -> dict:
             time.sleep(0.2)
         
         # Click on the Rectangle tool using the correct coordinates for secondary screen
-        paint_window.click_input(coords=(530, 82 ))
+        paint_window.click_input(coords=(796, 125 ))
         time.sleep(0.2)
         
         # Get the canvas area
@@ -188,9 +188,9 @@ async def draw_rectangle(x1: int, y1: int, x2: int, y2: int) -> dict:
         
         # Draw rectangle - coordinates should already be relative to the Paint window
         # No need to add primary_width since we're clicking within the Paint window
-        canvas.press_mouse_input(coords=(x1+600, y1))
-        canvas.move_mouse_input(coords=(x2+200, y2))
-        canvas.release_mouse_input(coords=(x2+200, y2))
+        canvas.press_mouse_input(coords=(x1, y1))
+        canvas.move_mouse_input(coords=(x2, y2))
+        canvas.release_mouse_input(coords=(x2, y2))
         
         return {
             "content": [
@@ -242,7 +242,7 @@ async def add_text_in_paint(text: str) -> dict:
         
         # Select text tool using keyboard shortcuts
         paint_window.type_keys('t')
-        time.sleep(0.5)
+        time.sleep(0.2)
         paint_window.type_keys('x')
         time.sleep(0.5)
         
@@ -277,36 +277,24 @@ async def add_text_in_paint(text: str) -> dict:
 
 @mcp.tool()
 async def open_paint() -> dict:
-    """Open Microsoft Paint maximized on secondary monitor"""
+    """Open Microsoft Paint maximized on the primary monitor"""
     global paint_app
     try:
         paint_app = Application().start('mspaint.exe')
         time.sleep(0.2)
-        
+
         # Get the Paint window
         paint_window = paint_app.window(class_name='MSPaintApp')
-        
-        # Get primary monitor width
-        primary_width = GetSystemMetrics(0)
-        
-        # First move to secondary monitor without specifying size
-        win32gui.SetWindowPos(
-            paint_window.handle,
-            win32con.HWND_TOP,
-            primary_width + 1, 0,  # Position it on secondary monitor
-            0, 0,  # Let Windows handle the size
-            win32con.SWP_NOSIZE  # Don't change the size
-        )
-        
-        # Now maximize the window
+
+        # Maximize the window directly without repositioning
         win32gui.ShowWindow(paint_window.handle, win32con.SW_MAXIMIZE)
         time.sleep(0.2)
-        
+
         return {
             "content": [
                 TextContent(
                     type="text",
-                    text="Paint opened successfully on secondary monitor and maximized"
+                    text="Paint opened successfully on primary monitor and maximized"
                 )
             ]
         }

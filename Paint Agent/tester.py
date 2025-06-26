@@ -1,4 +1,6 @@
-import google.generativeai as genai
+import pyautogui
+import time
 
-
-print("Hello, World!")
+print("Move your mouse to the target position in 5 seconds...")
+time.sleep(3)
+print(pyautogui.position())
