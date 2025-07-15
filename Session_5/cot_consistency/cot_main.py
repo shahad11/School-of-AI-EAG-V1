@@ -81,7 +81,7 @@ User: Verified correct.
 Assistant: FINAL_ANSWER: [20]"""
 
                 problem = "(23 + 7) * (15 - 8)"
-                set_trace()
+                
                 console.print(Panel(f"Problem: {problem}", border_style="cyan"))
 
                 # Initialize conversation
@@ -90,6 +90,7 @@ Assistant: FINAL_ANSWER: [20]"""
 
                 while True:
                     response = await generate_with_timeout(model, prompt)
+                    set_trace()
                     if not response or not hasattr(response, "text"):
                         break
 
