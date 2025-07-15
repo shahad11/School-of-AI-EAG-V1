@@ -2,30 +2,29 @@ import os
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-#from google import genai
-import google.generativeai as genai
+from google import genai
 import asyncio
 from rich.console import Console
 from rich.panel import Panel
-from pdb import set_trace
 
 console = Console()
 
 # Load environment variables and setup Gemini
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
-print(api_key)
-genai.configure(api_key=api_key)
-model = genai.GenerativeModel("gemini-2.0-flash")  # or "gemini-1.5-flash"
+client = genai.Client(api_key=api_key)
 
-async def generate_with_timeout(model, prompt, timeout=10):
+async def generate_with_timeout(client, prompt, timeout=10):
     """Generate content with a timeout"""
     try:
         loop = asyncio.get_event_loop()
         response = await asyncio.wait_for(
             loop.run_in_executor(
                 None, 
-                lambda: model.generate_content(prompt)
+                lambda: client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
             ),
             timeout=timeout
         )
@@ -34,10 +33,10 @@ async def generate_with_timeout(model, prompt, timeout=10):
         console.print(f"[red]Error: {e}[/red]")
         return None
 
-async def get_llm_response(model, prompt):
+async def get_llm_response(client, prompt):
     """Get response from LLM with timeout"""
-    response = await generate_with_timeout(model, prompt)
-    if response and hasattr(response, "text"):
+    response = await generate_with_timeout(client, prompt)
+    if response and response.text:
         return response.text.strip()
     return None
 
@@ -81,7 +80,6 @@ User: Verified correct.
 Assistant: FINAL_ANSWER: [20]"""
 
                 problem = "(23 + 7) * (15 - 8)"
-                
                 console.print(Panel(f"Problem: {problem}", border_style="cyan"))
 
                 # Initialize conversation
@@ -89,9 +87,8 @@ Assistant: FINAL_ANSWER: [20]"""
                 conversation_history = []
 
                 while True:
-                    response = await generate_with_timeout(model, prompt)
-                    set_trace()
-                    if not response or not hasattr(response, "text"):
+                    response = await generate_with_timeout(client, prompt)
+                    if not response or not response.text:
                         break
 
                     result = response.text.strip()
@@ -139,7 +136,6 @@ Assistant: FINAL_ANSWER: [20]"""
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        #traceback.print_exc()
 
 if __name__ == "__main__":
     asyncio.run(main())
