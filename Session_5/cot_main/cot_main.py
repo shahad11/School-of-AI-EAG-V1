@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -6,6 +5,7 @@ from google import genai
 import asyncio
 from rich.console import Console
 from rich.panel import Panel
+import os
 
 console = Console()
 
