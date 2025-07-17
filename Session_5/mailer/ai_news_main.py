@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 import os
 from pdb import set_trace
+import sys
 
 console = Console()
 
@@ -41,7 +42,7 @@ async def main():
     try:
         console.print(Panel("AI News & Robotics Agent", border_style="cyan"))
         server_params = StdioServerParameters(
-            command="python",
+            command=sys.executable,
             args=["ai_news_tools.py"]
         )
 
@@ -112,6 +113,7 @@ Assistant: FINAL_ANSWER: [Completed]
 
                         elif func_name == "fetch_article_content":
                             url = parts[1]
+                            set_trace()
                             content_result = await session.call_tool("fetch_article_content", arguments={"url": url})
                             content = content_result.content[0].text
                             article_contents.append(content)
@@ -121,10 +123,12 @@ Assistant: FINAL_ANSWER: [Completed]
                             filename = parts[1]
                             # articles: list of (title, content)
                             articles = eval(parts[2])
+                            set_trace()
                             await session.call_tool("save_to_word", arguments={"filename": filename, "articles": articles})
                             prompt += f"\nUser: Articles saved to Word. Summarize all articles."
 
                         elif func_name == "send_email":
+                            set_trace()
                             subject, body, to_email = parts[1], parts[2], parts[3]
                             await session.call_tool("send_email", arguments={"subject": subject, "body": body, "to_email": to_email})
                             prompt += f"\nUser: Done."

@@ -66,7 +66,7 @@ def send_email(subject: str, body: str, to_email: str) -> TextContent:
     console.print("[blue]FUNCTION CALL:[/blue] send_email()")
     try:
         smtp_server = os.getenv("SMTP_SERVER")
-        smtp_port = int(os.getenv("SMTP_PORT", 587))
+        smtp_port = int(os.getenv("SMTP_PORT", 465))
         smtp_user = os.getenv("SMTP_USER")
         smtp_password = os.getenv("SMTP_PASSWORD")
         from_email = smtp_user
