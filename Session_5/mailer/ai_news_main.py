@@ -6,6 +6,7 @@ import asyncio
 from rich.console import Console
 from rich.panel import Panel
 import os
+from pdb import set_trace
 
 console = Console()
 
@@ -39,7 +40,6 @@ async def generate_with_timeout(client, prompt, timeout=15):
 async def main():
     try:
         console.print(Panel("AI News & Robotics Agent", border_style="cyan"))
-
         server_params = StdioServerParameters(
             command="python",
             args=["ai_news_tools.py"]
