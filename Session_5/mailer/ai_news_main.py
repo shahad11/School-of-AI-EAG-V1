@@ -38,9 +38,54 @@ async def generate_with_timeout(client, prompt, timeout=15):
         console.print(f"[red]Error: {e}[/red]")
         return None
 
+async def select_relevant_articles(client, articles):
+    """Use LLM to select three most relevant articles in AI and Robotics"""
+    prompt = f"""Given this list of AI news articles, select the THREE most relevant ones focusing on AI and Robotics:
+
+{articles}
+
+Return ONLY a Python list of tuples in this exact format:
+[(title1, url1), (title2, url2), (title3, url3)]
+
+Choose articles that are most relevant to AI and Robotics advancements, research, or applications."""
+    
+    response = await generate_with_timeout(client, prompt)
+    if response and response.text:
+        try:
+            # Extract the list from the response
+            result = response.text.strip()
+            if "[" in result and "]" in result:
+                start = result.find("[")
+                end = result.rfind("]") + 1
+                list_str = result[start:end]
+                return eval(list_str)
+        except Exception as e:
+            console.print(f"[red]Error parsing selected articles: {e}[/red]")
+    
+    # Fallback: return first 3 articles
+    return articles[:3] if len(articles) >= 3 else articles
+
+async def generate_summary(client, articles_with_content):
+    """Use LLM to generate a summary of all articles"""
+    content_text = ""
+    for title, content in articles_with_content:
+        content_text += f"\n\nTitle: {title}\nContent: {content[:500]}..."  # Truncate for LLM
+    
+    prompt = f"""Summarize these AI and Robotics news articles in a concise, informative way:
+
+{content_text}
+
+Provide a comprehensive summary that covers the key developments and their implications."""
+    
+    response = await generate_with_timeout(client, prompt)
+    if response and response.text:
+        return response.text.strip()
+    return "Summary generation failed."
+
 async def main():
     try:
         console.print(Panel("AI News & Robotics Agent", border_style="cyan"))
+
         server_params = StdioServerParameters(
             command=sys.executable,
             args=["ai_news_tools.py"]
@@ -50,108 +95,71 @@ async def main():
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
-                system_prompt = '''You are an AI news and robotics research agent. Your job is to:
-1. Fetch the latest news articles from the provided AI news website.
-2. Select the three most relevant topics in AI and Robotics.
-3. For each, fetch the full article content.
-4. Save all articles to a Word file.
-5. Summarize all the content in a concise report.
-6. Send the summary to the user's email address.
+                # Step 1: Fetch all articles from the news website
+                console.print("\n[blue]Step 1: Fetching articles from AI News website...[/blue]")
+                news_result = await session.call_tool("fetch_ai_news", arguments={"url": NEWS_URL})
+                articles = eval(news_result.content[0].text)
+                console.print(f"[green]✓ Fetched {len(articles)} articles[/green]")
+                
+                if not articles:
+                    console.print("[red]❌ No articles found. Please check the website URL or try again later.[/red]")
+                    return
 
-You have access to these tools:
-- fetch_ai_news(url: str) - Get a list of (title, link) tuples for news articles
-- fetch_article_content(url: str) - Get the full text of an article
-- save_to_word(filename: str, articles: list) - Save articles to a Word file
-- send_email(subject: str, body: str, to_email: str) - Send an email
+                # Step 2: Select three most relevant articles using LLM
+                console.print("\n[blue]Step 2: Selecting three most relevant articles in AI and Robotics...[/blue]")
+                selected_articles = await select_relevant_articles(client, articles)
+                console.print(f"[green]✓ Selected {len(selected_articles)} articles:[/green]")
+                for i, (title, url) in enumerate(selected_articles, 1):
+                    console.print(f"  {i}. {title}")
 
-Respond with EXACTLY ONE line in one of these formats:
-1. FUNCTION_CALL: function_name|param1|param2|...
-2. FINAL_ANSWER: [answer]
+                if not selected_articles:
+                    console.print("[red]❌ No articles selected. Using first 3 articles as fallback.[/red]")
+                    selected_articles = articles[:3] if len(articles) >= 3 else articles
 
-Example:
-User: Fetch the latest news.
-Assistant: FUNCTION_CALL: fetch_ai_news|https://www.artificialintelligence-news.com/artificial-intelligence-news/
-User: Here are the articles. Select three most relevant in AI and Robotics.
-Assistant: FINAL_ANSWER: [(title1, link1), (title2, link2), (title3, link3)]
-User: Fetch content for each article.
-Assistant: FUNCTION_CALL: fetch_article_content|link1
-... (repeat for each)
-User: Save all to Word file.
-Assistant: FUNCTION_CALL: save_to_word|ai_news_articles.docx|[(title1, content1), (title2, content2), (title3, content3)]
-User: Summarize all articles.
-Assistant: FINAL_ANSWER: [summary]
-User: Send summary to email.
-Assistant: FUNCTION_CALL: send_email|AI News Summary|summary|shahadmohammed111111@gmail.com
-User: Done.
-Assistant: FINAL_ANSWER: [Completed]
-'''
+                # Step 3: Fetch content for each selected article
+                console.print("\n[blue]Step 3: Fetching content for each article...[/blue]")
+                articles_with_content = []
+                for i, (title, url) in enumerate(selected_articles, 1):
+                    console.print(f"  Fetching article {i}/{len(selected_articles)}...")
+                    content_result = await session.call_tool("fetch_article_content", arguments={"url": url})
+                    content = content_result.content[0].text
+                    articles_with_content.append((title, content))
+                    console.print(f"  [green]✓ Fetched content for: {title[:50]}...[/green]")
 
-                prompt = f"{system_prompt}\n\nFetch the latest news."
-                conversation_history = []
-                selected_articles = []
-                article_contents = []
-                summary = ""
+                if not articles_with_content:
+                    console.print("[red]❌ No article content could be fetched. Exiting.[/red]")
+                    return
 
-                while True:
-                    response = await generate_with_timeout(client, prompt)
-                    if not response or not response.text:
-                        break
-                    result = response.text.strip()
-                    console.print(f"\n[yellow]Assistant:[/yellow] {result}")
+                # Step 4: Save all articles to Word file
+                console.print(f"\n[blue]Step 4: Saving articles to {WORD_FILENAME}...[/blue]")
+                save_result = await session.call_tool("save_to_word", arguments={
+                    "filename": WORD_FILENAME, 
+                    "articles": articles_with_content
+                })
+                console.print(f"[green]✓ {save_result.content[0].text}[/green]")
 
-                    if result.startswith("FUNCTION_CALL:"):
-                        _, function_info = result.split(":", 1)
-                        parts = [p.strip() for p in function_info.split("|")]
-                        func_name = parts[0]
+                # Step 5: Generate summary using LLM
+                console.print("\n[blue]Step 5: Generating summary of all articles...[/blue]")
+                summary = await generate_summary(client, articles_with_content)
+                console.print(f"[green]✓ Summary generated[/green]")
 
-                        if func_name == "fetch_ai_news":
-                            url = parts[1]
-                            news_result = await session.call_tool("fetch_ai_news", arguments={"url": url})
-                            articles = eval(news_result.content[0].text)
-                            prompt += f"\nUser: Here are the articles. Select three most relevant in AI and Robotics."
-                            conversation_history.append(("articles", articles))
+                # Step 6: Send summary via email
+                console.print(f"\n[blue]Step 6: Sending summary to {EMAIL}...[/blue]")
+                email_result = await session.call_tool("send_email", arguments={
+                    "subject": "AI News & Robotics Summary",
+                    "body": summary,
+                    "to_email": EMAIL
+                })
+                console.print(f"[green]✓ {email_result.content[0].text}[/green]")
 
-                        elif func_name == "fetch_article_content":
-                            url = parts[1]
-                            #set_trace()
-                            content_result = await session.call_tool("fetch_article_content", arguments={"url": url})
-                            content = content_result.content[0].text
-                            article_contents.append(content)
-                            prompt += f"\nUser: Content fetched."
-
-                        elif func_name == "save_to_word":
-                            filename = parts[1]
-                            # articles: list of (title, content)
-                            articles = eval(parts[2])
-                            #set_trace()
-                            await session.call_tool("save_to_word", arguments={"filename": filename, "articles": articles})
-                            prompt += f"\nUser: Articles saved to Word. Summarize all articles."
-
-                        elif func_name == "send_email":
-                            #set_trace()
-                            subject, body, to_email = parts[1], parts[2], parts[3]
-                            await session.call_tool("send_email", arguments={"subject": subject, "body": body, "to_email": to_email})
-                            prompt += f"\nUser: Done."
-
-                    elif result.startswith("FINAL_ANSWER:"):
-                        answer = result.split("[", 1)[1].split("]")[0]
-                        if "Completed" in answer:
-                            break
-                        elif answer.startswith("(") or answer.startswith("["):
-                            # This is the list of selected articles
-                            selected_articles = eval(answer)
-                            prompt += f"\nUser: Fetch content for each article."
-                        else:
-                            # This is the summary
-                            summary = answer
-                            prompt += f"\nUser: Send summary to email."
-
-                    prompt += f"\nAssistant: {result}"
-
-                console.print("\n[green]AI News workflow completed![/green]")
+                console.print("\n[green]🎉 AI News workflow completed successfully![/green]")
+                console.print(f"[cyan]📄 Articles saved to: {WORD_FILENAME}[/cyan]")
+                console.print(f"[cyan]📧 Summary sent to: {EMAIL}[/cyan]")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        console.print(f"[red]Traceback: {traceback.format_exc()}[/red]")
 
 if __name__ == "__main__":
     asyncio.run(main()) 
