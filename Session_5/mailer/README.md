@@ -97,7 +97,7 @@ Step 6: Sending summary to youremail@gmail.com...
 ## 🙏 Credits & Acknowledgements
 - Built with [UV](https://github.com/astral-sh/uv), [python-dotenv](https://github.com/theskumar/python-dotenv), [python-docx](https://python-docx.readthedocs.io/), [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/), and [Rich](https://github.com/Textualize/rich).
 - Agentic workflow inspired by modern LLM tool-use research.
-
+- Don't forgrt to create .env file before running the script.
 ---
 
 ## 📬 Questions?
