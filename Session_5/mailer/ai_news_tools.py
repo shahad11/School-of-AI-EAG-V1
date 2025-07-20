@@ -9,6 +9,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 console = Console()
 mcp = FastMCP("AINewsAgent")
@@ -160,9 +162,15 @@ Applications include drug discovery, climate modeling, and autonomous systems. T
 
 @mcp.tool()
 def save_to_word(filename: str, articles: list) -> TextContent:
-    """Save a list of (title, content) tuples to a Word file."""
+    """Save a list of (title, content) tuples to a Word file, replacing the file if it exists."""
     console.print("[blue]FUNCTION CALL:[/blue] save_to_word()")
     try:
+        # Always replace the file if it exists
+        if os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not remove existing file: {e}[/yellow]")
         doc = Document()
         for title, content in articles:
             doc.add_heading(title, level=1)
@@ -183,8 +191,23 @@ def send_email(subject: str, body: str, to_email: str) -> TextContent:
         smtp_user = os.getenv("SMTP_USER")
         smtp_password = os.getenv("SMTP_PASSWORD")
         
-        if not all([smtp_server, smtp_user, smtp_password]):
-            return TextContent(type="text", text="Error: SMTP settings not configured in .env file")
+        # Check each setting individually and provide specific error messages
+        missing_settings = []
+        if not smtp_server:
+            missing_settings.append("SMTP_SERVER")
+        if not smtp_user:
+            missing_settings.append("SMTP_USER")
+        if not smtp_password:
+            missing_settings.append("SMTP_PASSWORD")
+        
+        if missing_settings:
+            error_msg = f"Missing SMTP settings in .env file: {', '.join(missing_settings)}"
+            console.print(f"Error: {error_msg}")
+            return TextContent(type="text", text=f"Error: {error_msg}")
+        
+        console.print(f"Using SMTP: {smtp_server}:{smtp_port}")
+        console.print(f"From: {smtp_user}")
+        console.print(f"To: {to_email}")
         
         from_email = smtp_user
         msg = MIMEMultipart()
@@ -204,9 +227,10 @@ def send_email(subject: str, body: str, to_email: str) -> TextContent:
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, to_email, msg.as_string())
         
+        console.print("Email sent successfully")
         return TextContent(type="text", text="Email sent successfully.")
     except Exception as e:
-        console.print(f"[red]Error:[/red] {str(e)}")
+        console.print(f"Error: {str(e)}")
         return TextContent(type="text", text=f"Error: {str(e)}")
 
 if __name__ == "__main__":
