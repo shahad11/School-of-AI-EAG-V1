@@ -7,4 +7,12 @@ class User(BaseModel):
 
 user = User(name="John", age=30, email="john@example.com")
 print(user)
+user = User(name="John", age=" uv", email="john@example.com")
+print(user)
+
+
+
+
+
+
 
