@@ -1,0 +1,42 @@
+{
+  "user_preferences": {
+    "email": "user@example.com",
+    "article_count": 3,
+    "topics": [
+      "ai",
+      "robotics"
+    ],
+    "filename": "articles.docx"
+  },
+  "session_history": [
+    {
+      "action": "test_action",
+      "status": "success",
+      "timestamp": "2025-08-10T18:11:19.344944"
+    }
+  ],
+  "article_cache": {
+    "ai_news_20250810": {
+      "articles": [
+        [
+          "Test Article 1",
+          "https://example.com/1"
+        ],
+        [
+          "Test Article 2",
+          "https://example.com/2"
+        ]
+      ],
+      "timestamp": "2025-08-10T18:11:19.347113",
+      "count": 2
+    }
+  },
+  "email_history": [],
+  "system_state": {
+    "last_run": null,
+    "total_articles_processed": 0,
+    "successful_runs": 0,
+    "failed_runs": 0
+  },
+  "created_at": "2025-08-10T18:11:19.337322"
+}
