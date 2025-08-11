@@ -11,6 +11,16 @@ from datetime import datetime
 from perception_layer import PerceptionLayer
 from memory_layer import MemoryLayer
 from decision_layer import DecisionLayer
+from models import (
+    FetchAINewsInput,
+    FetchAINewsOutput,
+    FetchArticleContentInput,
+    FetchArticleContentOutput,
+    SaveToWordInput,
+    ArticleContent,
+    SendEmailInput,
+)
+import json
 
 console = Console()
 
@@ -145,8 +155,14 @@ class AINewsOrchestrator:
                                 continue
                         
                         # Fetch new articles
-                        result = await self.session.call_tool("fetch_ai_news", arguments=parameters)
-                        articles = eval(result.content[0].text)
+                        # Prefer v2 (Pydantic) tool if available; fallback to legacy
+                        try:
+                            result = await self.session.call_tool("fetch_ai_news_v2", arguments=FetchAINewsInput(url=parameters.get("url")).model_dump())
+                            data = json.loads(result.content[0].text)
+                            articles = [(a["title"], a["url"]) for a in data.get("articles", [])]
+                        except Exception:
+                            result = await self.session.call_tool("fetch_ai_news", arguments=parameters)
+                            articles = eval(result.content[0].text)
                         console.print(f"[green]✓ Fetched {len(articles)} articles[/green]")
                         
                         # Cache the articles
@@ -176,8 +192,13 @@ class AINewsOrchestrator:
                         for i, (title, url) in enumerate(selected_articles, 1):
                             console.print(f"  Fetching article {i}/{len(selected_articles)}...")
                             try:
-                                content_result = await self.session.call_tool("fetch_article_content", arguments={"url": url})
-                                content = content_result.content[0].text
+                                # Prefer v2
+                                try:
+                                    content_result = await self.session.call_tool("fetch_article_content_v2", arguments=FetchArticleContentInput(url=url).model_dump())
+                                    content = json.loads(content_result.content[0].text).get("content", "")
+                                except Exception:
+                                    content_result = await self.session.call_tool("fetch_article_content", arguments={"url": url})
+                                    content = content_result.content[0].text
                                 articles_with_content.append((title, content))
                                 console.print(f"  [green]✓ Fetched content for: {title[:50]}...[/green]")
                             except Exception as content_error:
@@ -192,11 +213,21 @@ class AINewsOrchestrator:
                             console.print("[yellow]No articles with content to save[/yellow]")
                             continue
                             
-                        save_result = await self.session.call_tool("save_to_word", arguments={
-                            "filename": parameters.get("filename", "ai_news_articles.docx"),
-                            "articles": articles_with_content
-                        })
-                        console.print(f"[green]✓ {save_result.content[0].text}[/green]")
+                        # Prefer v2
+                        try:
+                            payload = SaveToWordInput(
+                                filename=parameters.get("filename", "ai_news_articles.docx"),
+                                articles=[ArticleContent(title=t, content=c) for t, c in articles_with_content],
+                            )
+                            save_result = await self.session.call_tool("save_to_word_v2", arguments=payload.model_dump())
+                            result_text = json.loads(save_result.content[0].text).get("message", "Saved")
+                            console.print(f"[green]✓ {result_text}[/green]")
+                        except Exception:
+                            save_result = await self.session.call_tool("save_to_word", arguments={
+                                "filename": parameters.get("filename", "ai_news_articles.docx"),
+                                "articles": articles_with_content
+                            })
+                            console.print(f"[green]✓ {save_result.content[0].text}[/green]")
                         
                     elif action == "generate_summary":
                         if not articles_with_content:
@@ -239,12 +270,23 @@ class AINewsOrchestrator:
                         # Persist the final summary used
                         current_summary = summary
                         
-                        email_result = await self.session.call_tool("send_email", arguments={
-                            "subject": "AI News & Robotics Summary",
-                            "body": summary,
-                            "to_email": parameters.get("to_email", "shahadmohammed111111@gmail.com")
-                        })
-                        console.print(f"[green]✓ {email_result.content[0].text}[/green]")
+                        # Prefer v2
+                        try:
+                            email_payload = SendEmailInput(
+                                subject="AI News & Robotics Summary",
+                                body=summary,
+                                to_email=parameters.get("to_email", "shahadmohammed111111@gmail.com"),
+                            )
+                            email_result = await self.session.call_tool("send_email_v2", arguments=email_payload.model_dump())
+                            result_text = json.loads(email_result.content[0].text).get("message", "Email sent")
+                            console.print(f"[green]✓ {result_text}[/green]")
+                        except Exception:
+                            email_result = await self.session.call_tool("send_email", arguments={
+                                "subject": "AI News & Robotics Summary",
+                                "body": summary,
+                                "to_email": parameters.get("to_email", "shahadmohammed111111@gmail.com")
+                            })
+                            console.print(f"[green]✓ {email_result.content[0].text}[/green]")
                         
                         # Store email record
                         self.memory_layer.store_email_sent({

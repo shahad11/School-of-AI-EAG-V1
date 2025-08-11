@@ -15,6 +15,21 @@ load_dotenv()
 console = Console()
 mcp = FastMCP("AINewsAgent")
 
+# Pydantic models for validated I/O
+from models import (
+    FetchAINewsInput,
+    FetchAINewsOutput,
+    Article,
+    FetchArticleContentInput,
+    FetchArticleContentOutput,
+    SaveToWordInput,
+    SaveToWordOutput,
+    ArticleContent,
+    SendEmailInput,
+    SendEmailOutput,
+)
+import json
+
 @mcp.tool()
 def fetch_ai_news(url: str) -> TextContent:
     """Fetch and parse the main AI news page, returning a list of (title, link) tuples for articles."""
@@ -93,6 +108,35 @@ def fetch_ai_news(url: str) -> TextContent:
         console.print(f"Error: {str(e)}")
         return TextContent(type="text", text=f"Error: {str(e)}")
 
+
+# =========================
+# Pydantic-validated tools
+# =========================
+
+@mcp.tool()
+def fetch_ai_news_v2(input: FetchAINewsInput | dict) -> TextContent:
+    """Fetch AI news; returns JSON matching FetchAINewsOutput."""
+    console.print("[blue]FUNCTION CALL:[/blue] fetch_ai_news_v2()")
+    try:
+        if not isinstance(input, FetchAINewsInput):
+            input = FetchAINewsInput.model_validate(input)
+
+        # Reuse existing logic by calling fetch_ai_news on first source
+        legacy = fetch_ai_news(url=input.url or "")
+
+        # Parse legacy result which is a string of list of tuples
+        try:
+            articles_list = eval(legacy.text) if isinstance(legacy.text, str) else []
+        except Exception:
+            articles_list = []
+
+        articles_models = [Article(title=title, url=url) for title, url in articles_list]
+        payload = FetchAINewsOutput(articles=articles_models)
+        return TextContent(type="text", text=payload.model_dump_json())
+    except Exception as e:
+        console.print(f"Error: {e}")
+        return TextContent(type="text", text=FetchAINewsOutput(articles=[]).model_dump_json())
+
 @mcp.tool()
 def fetch_article_content(url: str) -> TextContent:
     """Fetch the full content of a news article given its URL."""
@@ -160,6 +204,28 @@ Applications include drug discovery, climate modeling, and autonomous systems. T
         console.print(f"Error: {str(e)}")
         return TextContent(type="text", text=f"Error fetching content: {str(e)}")
 
+
+@mcp.tool()
+def fetch_article_content_v2(input: FetchArticleContentInput | dict) -> TextContent:
+    """Fetch article content; returns JSON matching FetchArticleContentOutput."""
+    console.print("[blue]FUNCTION CALL:[/blue] fetch_article_content_v2()")
+    try:
+        if not isinstance(input, FetchArticleContentInput):
+            input = FetchArticleContentInput.model_validate(input)
+
+        legacy = fetch_article_content(url=input.url)
+        content = legacy.text
+        return TextContent(
+            type="text",
+            text=FetchArticleContentOutput(content=content).model_dump_json(),
+        )
+    except Exception as e:
+        console.print(f"Error: {e}")
+        return TextContent(
+            type="text",
+            text=FetchArticleContentOutput(content=f"Error: {e}").model_dump_json(),
+        )
+
 @mcp.tool()
 def save_to_word(filename: str, articles: list) -> TextContent:
     """Save a list of (title, content) tuples to a Word file, replacing the file if it exists."""
@@ -180,6 +246,29 @@ def save_to_word(filename: str, articles: list) -> TextContent:
     except Exception as e:
         console.print(f"[red]Error:[/red] {str(e)}")
         return TextContent(type="text", text=f"Error: {str(e)}")
+
+
+@mcp.tool()
+def save_to_word_v2(input: SaveToWordInput | dict) -> TextContent:
+    """Save articles to a Word file using validated schema."""
+    console.print("[blue]FUNCTION CALL:[/blue] save_to_word_v2()")
+    try:
+        if not isinstance(input, SaveToWordInput):
+            input = SaveToWordInput.model_validate(input)
+
+        # Convert to legacy (title, content) list
+        legacy_articles = [(a.title, a.content) for a in input.articles]
+        legacy_result = save_to_word(filename=input.filename, articles=legacy_articles)
+        return TextContent(
+            type="text",
+            text=SaveToWordOutput(message=legacy_result.text).model_dump_json(),
+        )
+    except Exception as e:
+        console.print(f"Error: {e}")
+        return TextContent(
+            type="text",
+            text=SaveToWordOutput(message=f"Error: {e}").model_dump_json(),
+        )
 
 @mcp.tool()
 def send_email(subject: str, body: str, to_email: str) -> TextContent:
@@ -232,6 +321,27 @@ def send_email(subject: str, body: str, to_email: str) -> TextContent:
     except Exception as e:
         console.print(f"Error: {str(e)}")
         return TextContent(type="text", text=f"Error: {str(e)}")
+
+
+@mcp.tool()
+def send_email_v2(input: SendEmailInput | dict) -> TextContent:
+    """Send email using validated schema."""
+    console.print("[blue]FUNCTION CALL:[/blue] send_email_v2()")
+    try:
+        if not isinstance(input, SendEmailInput):
+            input = SendEmailInput.model_validate(input)
+
+        legacy = send_email(subject=input.subject, body=input.body, to_email=input.to_email)
+        return TextContent(
+            type="text",
+            text=SendEmailOutput(message=legacy.text).model_dump_json(),
+        )
+    except Exception as e:
+        console.print(f"Error: {e}")
+        return TextContent(
+            type="text",
+            text=SendEmailOutput(message=f"Error: {e}").model_dump_json(),
+        )
 
 if __name__ == "__main__":
     import sys
