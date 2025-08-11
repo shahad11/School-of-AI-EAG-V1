@@ -1,104 +1,236 @@
-# Agentic AI News Agent
+# AI News Agent - Modular Architecture
 
-## 📰 Project Overview
-This project is an **Agentic AI workflow** that fetches the latest news articles about AI and Robotics, selects the most relevant ones, extracts their content, saves them to a Word document, generates a summary, and emails the summary to a specified address—all in an automated, step-by-step fashion.
+This project has been restructured into a modular, scalable architecture with four distinct layers that work together to provide intelligent AI news processing and delivery.
 
-- **Agentic workflow**: The system uses a chain-of-thought, tool-using agent that orchestrates multiple steps, calling tools for web scraping, document creation, and email sending.
-- **MCP Tools**: All core functionalities (fetching news, extracting content, saving to Word, sending email) are implemented as MCP tools in `ai_news_tools.py`.
-- **LLM Orchestration**: The main agent (`ai_news_main.py`) uses a large language model to select relevant articles and generate summaries.
-- **Environment Management**: The project uses [UV](https://github.com/astral-sh/uv) for fast, isolated Python environment management and dependency installation.
+## Architecture Overview
 
----
+The system is built around four core layers:
 
-## 🚀 Quick Start
+### 1. Perception Layer (`perception_layer.py`)
+**Purpose**: Translates raw user input into structured information that the agent can reason with.
 
-### 1. **Clone the Repository**
+**Key Features**:
+- Intent extraction using LLM
+- Fact extraction and requirement parsing
+- Article data structuring
+- Confidence scoring for decisions
+
+**Main Methods**:
+- `extract_intent(user_input)` - Determines what the user wants to do
+- `extract_facts(user_input)` - Extracts key facts and requirements
+- `parse_articles(articles)` - Structures article data for reasoning
+- `process_user_input(user_input)` - Main entry point for perception processing
+
+### 2. Memory Layer (`memory_layer.py`)
+**Purpose**: Stores facts and states about the user or environment for future reasoning.
+
+**Key Features**:
+- Persistent memory storage in JSON format
+- User preferences tracking
+- Session history management
+- Article caching system
+- Email history tracking
+- System state monitoring
+
+**Main Methods**:
+- `store_user_preferences(preferences)` - Saves user preferences
+- `cache_articles(articles, source)` - Caches articles to avoid refetching
+- `store_session(session_data)` - Records session information
+- `search_memory(query)` - Searches through stored data
+- `get_memory_summary()` - Provides overview of stored data
+
+### 3. Decision Layer (`decision_layer.py`)
+**Purpose**: Decides what to do next based on current input and memory.
+
+**Key Features**:
+- Workflow planning and optimization
+- Intelligent article selection using LLM
+- Summary generation with context awareness
+- Error recovery planning
+- Priority determination
+- Performance optimization based on historical data
+
+**Main Methods**:
+- `create_workflow_plan(perception_data, memory_data)` - Creates execution plan
+- `select_relevant_articles(articles, memory_data)` - Chooses best articles
+- `generate_summary(articles_with_content, memory_data)` - Creates summaries
+- `create_error_recovery_plan(error, step, workflow)` - Plans error recovery
+- `optimize_workflow(workflow, memory_data)` - Improves workflow based on history
+
+### 4. Action Layer (`ai_news_tools.py`)
+**Purpose**: Executes the decisions made by the decision layer.
+
+**Key Features**:
+- MCP (Model Context Protocol) tool integration
+- Web scraping for news articles
+- Word document generation
+- Email sending capabilities
+- Error handling and retry logic
+
+**Available Tools**:
+- `fetch_ai_news(url)` - Fetches articles from news sources
+- `fetch_article_content(url)` - Gets full article content
+- `save_to_word(filename, articles)` - Saves articles to Word file
+- `send_email(subject, body, to_email)` - Sends email summaries
+
+## Orchestrator (`ai_news_orchestrator.py`)
+
+The main orchestrator coordinates all four layers:
+
+- **Initialization**: Sets up all layers and MCP session
+- **Workflow Execution**: Manages the complete workflow from perception to action
+- **Error Handling**: Implements recovery strategies
+- **State Management**: Tracks system status and performance
+
+## Usage
+
+### Running the Modular System
+
 ```bash
-git clone https://github.com/yourusername/agentic-ai-news-agent.git
-cd agentic-ai-news-agent
+# Run the complete modular system
+python ai_news_orchestrator.py
 ```
 
-### 2. **Install [UV](https://github.com/astral-sh/uv) (if not already installed)**
-UV is a super-fast Python package manager and virtual environment tool. It makes it easy to create isolated environments for each project.
+### Individual Layer Testing
 
-```bash
-pip install uv
+```python
+# Test perception layer
+from perception_layer import PerceptionLayer
+perception = PerceptionLayer()
+result = perception.process_user_input("Fetch AI news and send me a summary")
+
+# Test memory layer
+from memory_layer import MemoryLayer
+memory = MemoryLayer()
+memory.store_user_preferences({"email": "user@example.com"})
+
+# Test decision layer
+from decision_layer import DecisionLayer
+decision = DecisionLayer()
+workflow = decision.create_workflow_plan(perception_data, memory_data)
 ```
 
-### 3. **Install Dependencies**
-```bash
-uv pip install -r pyproject.toml
-uv pip install python-dotenv
-```
+## Configuration
 
-### 4. **Configure Environment Variables**
-Create a `.env` file in the project root with the following content:
+### Environment Variables
+
+Create a `.env` file with:
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
-SMTP_SERVER=smtp.gmail.com
+GEMINI_API_KEY=your_gemini_api_key
+SMTP_SERVER=your_smtp_server
 SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASSWORD=your_gmail_app_password
-```
-- For Gmail, you must use an [App Password](https://support.google.com/accounts/answer/185833?hl=en) (not your regular password).
-
-### 5. **Run the MCP Tool Server**
-Open a terminal and run:
-```bash
-py -m uv run ai_news_tools.py
-defaults to stdio mode
-```
-This starts the MCP tool server, which exposes the tools for the agent to use.
-
-### 6. **Run the Main Agent**
-In another terminal, run:
-```bash
-py -m uv run ai_news_main.py
-```
-The agent will:
-- Fetch the latest AI/Robotics news
-- Select the 3 most relevant articles
-- Extract and save their content to a Word file
-- Generate a summary
-- Email the summary to the address in your `.env`
-
----
-
-## ⚙️ How It Works: Agentic Workflow
-- The main agent (`ai_news_main.py`) acts as an orchestrator, using a large language model to decide which tools to call and in what order.
-- Each step (fetching news, extracting content, saving, emailing) is a tool defined in `ai_news_tools.py`.
-- The agent maintains a chain-of-thought, passing results from one tool to the next, and can handle errors or missing data gracefully.
-- This modular, tool-based approach is called an **agentic workflow**—it enables flexible, explainable, and extensible automation.
-
----
-
-## 🧑‍💻 Example Output
-```
-Step 1: Fetching articles from AI News website...
-✓ Fetched 10 articles
-Step 2: Selecting three most relevant articles in AI and Robotics...
-✓ Selected 3 articles:
-  1. ...
-  2. ...
-  3. ...
-Step 3: Fetching content for each article...
-✓ Fetched content for: ...
-Step 4: Saving articles to ai_news_articles.docx...
-✓ Saved to ai_news_articles.docx
-Step 5: Generating summary of all articles...
-✓ Summary generated
-Step 6: Sending summary to youremail@gmail.com...
-✓ Email sent successfully!
+SMTP_USER=your_email
+SMTP_PASSWORD=your_password
 ```
 
----
+### Memory Configuration
 
-## 🙏 Credits & Acknowledgements
-- Built with [UV](https://github.com/astral-sh/uv), [python-dotenv](https://github.com/theskumar/python-dotenv), [python-docx](https://python-docx.readthedocs.io/), [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/), and [Rich](https://github.com/Textualize/rich).
-- Agentic workflow inspired by modern LLM tool-use research.
-- Don't forgrt to create .env file before running the script.
----
+The memory layer creates `agent_memory.json` to store:
+- User preferences
+- Session history
+- Article cache
+- Email history
+- System state
 
-## 📬 Questions?
-Open an issue or contact the maintainer at shahadmohammed111111@gmail.com.
+## Benefits of Modular Architecture
+
+### 1. Scalability
+- Each layer can be enhanced independently
+- Easy to add new capabilities to specific layers
+- Modular design supports horizontal scaling
+
+### 2. Maintainability
+- Clear separation of concerns
+- Easy to debug and test individual components
+- Reduced coupling between components
+
+### 3. Flexibility
+- Can swap out individual layers without affecting others
+- Easy to customize behavior for different use cases
+- Support for different input/output formats
+
+### 4. Intelligence
+- Memory enables learning from past interactions
+- Decision layer can optimize based on historical performance
+- Perception layer improves understanding over time
+
+### 5. Reliability
+- Error recovery at each layer
+- Fallback mechanisms for critical operations
+- Comprehensive logging and state tracking
+
+## Workflow Example
+
+1. **User Input**: "Get me the latest AI news and send a summary to my email"
+
+2. **Perception Layer**: 
+   - Extracts intent: "fetch_news" with confidence 0.95
+   - Identifies requirements: email delivery, AI focus
+   - Structures the request for processing
+
+3. **Memory Layer**:
+   - Loads user preferences (email address, article count)
+   - Checks for cached articles
+   - Retrieves recent session history
+
+4. **Decision Layer**:
+   - Creates workflow plan with 6 steps
+   - Determines priority: "high"
+   - Optimizes based on past performance
+
+5. **Action Layer**:
+   - Executes each step using MCP tools
+   - Handles errors with recovery strategies
+   - Updates memory with results
+
+## File Structure
+
+```
+mailer/
+├── perception_layer.py      # Layer 1: Input processing
+├── memory_layer.py         # Layer 2: Data persistence
+├── decision_layer.py       # Layer 3: Planning and reasoning
+├── ai_news_tools.py        # Layer 4: Action execution (unchanged)
+├── ai_news_orchestrator.py # Main coordinator
+├── ai_news_main.py         # Original monolithic version
+├── agent_memory.json       # Memory storage (auto-generated)
+├── ai_news_articles.docx   # Output file
+└── README_MODULAR.md       # This file
+```
+
+## Migration from Original
+
+The original `ai_news_main.py` has been preserved for reference. The new modular system:
+
+- Maintains the same functionality
+- Adds intelligence through memory and learning
+- Improves error handling and recovery
+- Enables easier customization and extension
+- Provides better debugging and monitoring capabilities
+
+## Future Enhancements
+
+Potential improvements for each layer:
+
+### Perception Layer
+- Multi-modal input support (voice, images)
+- Better intent classification
+- Context awareness
+
+### Memory Layer
+- Database integration for larger datasets
+- Advanced caching strategies
+- Memory compression and optimization
+
+### Decision Layer
+- Advanced planning algorithms
+- A/B testing for optimization
+- Predictive analytics
+
+### Action Layer
+- Additional tool integrations
+- Parallel execution capabilities
+- Advanced error recovery
+
+This modular architecture provides a solid foundation for scaling the AI news agent into a more sophisticated, intelligent system.
