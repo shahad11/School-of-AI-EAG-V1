@@ -125,6 +125,7 @@ class AINewsOrchestrator:
             articles = []
             selected_articles = []
             articles_with_content = []
+            current_summary = None
             
             for step in workflow["steps"]:
                 step_num = step["step"]
@@ -203,6 +204,14 @@ class AINewsOrchestrator:
                             continue
                             
                         summary = await self.decision_layer.generate_summary(articles_with_content, memory_data)
+                        # If LLM failed, create a simple fallback summary
+                        if not summary or "Summary generation failed" in summary:
+                            bullets = []
+                            for idx, (title, content) in enumerate(articles_with_content, start=1):
+                                preview = (content or "").strip()[:220]
+                                bullets.append(f"{idx}. {title}\n   {preview}...")
+                            summary = "AI News & Robotics Summary (Fallback)\n\n" + "\n\n".join(bullets)
+                        current_summary = summary
                         console.print(f"[green]✓ Generated summary ({len(summary)} characters)[/green]")
                         
                         # Store the summary for future reference
@@ -217,8 +226,18 @@ class AINewsOrchestrator:
                             console.print("[yellow]No articles with content to send email about[/yellow]")
                             continue
                             
-                        # Get the summary from the previous step
-                        summary = await self.decision_layer.generate_summary(articles_with_content, memory_data)
+                        # Reuse the summary from Step 5; only regenerate as a last resort
+                        summary = current_summary
+                        if not summary:
+                            summary = await self.decision_layer.generate_summary(articles_with_content, memory_data)
+                        if not summary or "Summary generation failed" in summary:
+                            bullets = []
+                            for idx, (title, content) in enumerate(articles_with_content, start=1):
+                                preview = (content or "").strip()[:220]
+                                bullets.append(f"{idx}. {title}\n   {preview}...")
+                            summary = "AI News & Robotics Summary (Fallback)\n\n" + "\n\n".join(bullets)
+                        # Persist the final summary used
+                        current_summary = summary
                         
                         email_result = await self.session.call_tool("send_email", arguments={
                             "subject": "AI News & Robotics Summary",
