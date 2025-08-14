@@ -19,4 +19,4 @@ embedding_vector = np.array(response.embeddings[0].values, dtype=np.float32)
 
 print(f"🔢 Vector length: {len(embedding_vector)}")
 print(f"📈 First 5 values: {embedding_vector[:5]}")
-print("DONE")
+
