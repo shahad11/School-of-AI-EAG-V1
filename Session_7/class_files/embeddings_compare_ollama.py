@@ -16,8 +16,8 @@ def get_embedding(text: str) -> np.ndarray:
 
 # 🎯 Phrases to compare
 sentences = [
-    "How does AlphaFold work?",
-    "How do proteins fold?",
+    "How to get what you want?",
+    "How to learn?",
     "What is the capital of France?",
     "Explain how neural networks learn."
 ]
